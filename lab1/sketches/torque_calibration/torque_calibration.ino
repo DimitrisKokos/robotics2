@@ -33,15 +33,15 @@
 
 // Motor definitions
 
-#define MOTOR_POLE_PAIRS NOT_SET   // measured with find_pole_pairs_number
+#define MOTOR_POLE_PAIRS 7   // measured with find_pole_pairs_number
 #define MOTOR_SUPPLY_VOLTAGE 12.0f // motor supply
 #define MOTOR_VOLTAGE_LIMIT 3.0f   // last voltage of the sweep
 #define SENSOR_ALIGN_VOLTAGE 1.0f  // voltage used for FOC sensor alignment
 
 // Stored alignment (see the procedure). Leave them as they are to align at every power-up.
 // After a normal alignment with the shaft free, motor_AS5600 prints the two lines to paste here.
-#define STORED_ZERO_ELECTRIC_ANGLE NOT_SET         // e.g. 3.12345f  (values printed by motor_AS5600)
-#define STORED_SENSOR_DIRECTION Direction::UNKNOWN // Direction::CW or Direction::CCW
+#define STORED_ZERO_ELECTRIC_ANGLE 5.9         // e.g. 3.12345f  (values printed by motor_AS5600)
+#define STORED_SENSOR_DIRECTION Direction::CCW // Direction::CW or Direction::CCW
 
 // Sweep definitions
 
@@ -56,7 +56,7 @@
 #define DEFAULT_CAL_FACTOR 650.00 // used if no valid value is stored in EEPROM
 #define EEPROM_CAL_ADDRESS 0      // EEPROM address of the calibration factor
 #define LOADCELL_REVERSE 0        // 1 = invert the sign of the load cell reading
-#define ROD_LENGTH_M NOT_SET      // shaft axis to be set -> load cell contact point (m)
+#define ROD_LENGTH_M 0.09      // shaft axis to be set -> load cell contact point (m)
 
 #if DATA_POINTS < 1
 #error "DATA_POINTS must be at least 1"

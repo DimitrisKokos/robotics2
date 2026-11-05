@@ -2,10 +2,10 @@
 
 // Definitions
 
-#define MOTOR_POLE_PAIRS NOT_SET   // FOC calibration measured approximately that many pole pairs
+#define MOTOR_POLE_PAIRS 7   // FOC calibration measured approximately that many pole pairs
 #define MOTOR_SUPPLY_VOLTAGE 12.0f // motor supply
 #define MOTOR_VOLTAGE_LIMIT 3.0f   // maximum target voltage allowed from serial
-#define SENSOR_ALIGN_VOLTAGE 1.0f  // voltage used for FOC sensor alignment
+#define SENSOR_ALIGN_VOLTAGE 1.5f  // voltage used for FOC sensor alignment
 
 // Stored alignment: the shaft does not move at power-up. Leave them as they are to align
 // at every power-up. After a normal alignment (shaft free) the summary printed in setup()

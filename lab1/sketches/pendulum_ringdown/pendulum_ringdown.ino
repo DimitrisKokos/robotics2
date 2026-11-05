@@ -34,7 +34,7 @@
 #if BRAKED_MODE
 #include <FOC_lar.h>
 
-#define MOTOR_POLE_PAIRS NOT_SET
+#define MOTOR_POLE_PAIRS 7
 #define MOTOR_SUPPLY_VOLTAGE 12.0f
 #define MOTOR_VOLTAGE_LIMIT 3.0f
 

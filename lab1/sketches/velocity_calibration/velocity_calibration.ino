@@ -26,14 +26,14 @@
 
 // Motor definitions
 
-#define MOTOR_POLE_PAIRS NOT_SET   // measured with find_pole_pairs_number
+#define MOTOR_POLE_PAIRS 7   // measured with find_pole_pairs_number
 #define MOTOR_SUPPLY_VOLTAGE 12.0f // motor supply
 #define MOTOR_VOLTAGE_LIMIT 3.0f   // last voltage of each sweep (+ and -)
 #define SENSOR_ALIGN_VOLTAGE 1.0f  // voltage used for FOC sensor alignment
 
 // Sweep definitions
 
-#define DATA_POINTS 50    // equal voltage increases per direction
+#define DATA_POINTS 40    // equal voltage increases per direction
 #define STAB_TIME_S 3.0f  // wait after every increase, for the speed to settle (s)
 #define MEAS_TIME_S 1.0f  // averaging window after the wait (s)
 #define COAST_TIME_S 3.0f // 0 V pause between the + and - sweeps (s)
