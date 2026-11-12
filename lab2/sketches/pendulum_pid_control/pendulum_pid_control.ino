@@ -48,22 +48,22 @@
 #define MOTOR_VOLTAGE_LIMIT 3.0f // limits the torque: max torque = TORQUE_CONSTANT * this
 #define SENSOR_ALIGN_VOLTAGE 1.0f
 
-#define STORED_ZERO_ELECTRIC_ANGLE NOT_SET // paste the values printed by motor_AS5600
-#define STORED_SENSOR_DIRECTION Direction::UNKNOWN
+#define STORED_ZERO_ELECTRIC_ANGLE 5.9 // paste the values printed by motor_AS5600
+#define STORED_SENSOR_DIRECTION Direction::CCW
 
 // Calibration results (Lab 1)
 
-#define TORQUE_CONSTANT NOT_SET // N*m/V    <- REPLACE
-#define MOTOR_KE NOT_SET        // V*s/rad  <- REPLACE (low-speed Ke)
+#define TORQUE_CONSTANT 0.009429	 // N*m/V    <- REPLACE
+#define MOTOR_KE 0.02689       // V*s/rad  <- REPLACE (low-speed Ke)
 #define USE_BACK_EMF_COMP 1     // 1: the torque command includes the back-EMF compensation
 
 // Pendulum parameters (Lab 1)
 
-#define ROD_MASS NOT_SET         // kg   <- REPLACE
-#define POINT_MASS NOT_SET       // kg   <- REPLACE
-#define PENDULUM_LENGTH NOT_SET  // m    <- REPLACE
-#define VISCOUS_FRICTION NOT_SET // N*m*s/rad  <- REPLACE (ring-down)
-#define COULOMB_FRICTION NOT_SET // N*m, tau_c  <- REPLACE (ring-down)
+#define ROD_MASS 0.02        // kg   <- REPLACE
+#define POINT_MASS 0.05       // kg   <- REPLACE
+#define PENDULUM_LENGTH 0.09  // m    <- REPLACE
+#define VISCOUS_FRICTION 1.6850e-05 // N*m*s/rad  <- REPLACE (ring-down)
+#define COULOMB_FRICTION 4.9812e-04 // N*m, tau_c  <- REPLACE (ring-down)
 #define USE_COULOMB_COMP 1       // 1: add tau_c*sign(omega) to the torque (Coulomb friction compensation)
 
 // Run
@@ -76,17 +76,17 @@
 
 // PID design (Part 1)
 
-#define PID_WN_HANGING NOT_SET         // rad/s  closed-loop natural frequency, hanging
-#define PID_WN_UPRIGHT NOT_SET         // rad/s  closed-loop natural frequency, upright
-#define PID_ZETA NOT_SET               // damping ratio
-#define PID_KI_OVER_KP_HANGING NOT_SET // ki = this * kp   (1/s); 0 = PD
-#define PID_KI_OVER_KP_UPRIGHT NOT_SET
+#define PID_WN_HANGING 25        // rad/s  closed-loop natural frequency, hanging
+#define PID_WN_UPRIGHT 15       // rad/s  closed-loop natural frequency, upright
+#define PID_ZETA 0.7              // damping ratio
+#define PID_KI_OVER_KP_HANGING 1.0 // ki = this * kp   (1/s); 0 = PD
+#define PID_KI_OVER_KP_UPRIGHT 0.5
 
 // Energy swing-up (Part 2)
 
-#define SWING_ENERGY_RATIO NOT_SET // target energy / energy at the top
-#define SWING_ENERGY_BAND NOT_SET  // energy error, as a fraction of E_up, over which the torque ramps to full
-#define SWING_KICK_SPEED NOT_SET   // below this |omega| (rad/s) the last push direction is kept
+#define SWING_ENERGY_RATIO 1.03 // target energy / energy at the top
+#define SWING_ENERGY_BAND 0.1 // energy error, as a fraction of E_up, over which the torque ramps to full
+#define SWING_KICK_SPEED 0.3  // below this |omega| (rad/s) the last push direction is kept
 
 // SimpleFOCMini v1.0 + Arduino UNO: pole pairs, IN1, IN2, IN3, EN
 FOC_lar foc(MOTOR_POLE_PAIRS, 11, 10, 9, 8);
@@ -155,6 +155,7 @@ struct Pid
     void reset()
     {
         // TODO: clear the controller's stored integral state.
+        integral = 0.0f;
     }
 
     // error = reference - theta (rad), omega = measured velocity (rad/s).
@@ -170,7 +171,20 @@ struct Pid
         //   (fabsf(tau) < limit). After integrating, if ki > 0, bound the integral so its torque contribution
         //   is at most half the available torque limit in either direction.
         // TODO (Part 2): clamp the calculated torque to +/- limit and return it.
-        return 0.0f;
+        float tau = kp * error + ki * integral - kd * omega;
+
+        // anti-windup: integrate only while the output is not saturated, and keep ki*integral <= limit/2
+        if (fabsf(tau) < limit)
+        {
+            integral += error * dt;
+        }
+        if (ki > 0.0f)
+        {
+            float integral_max = 0.5f * limit / ki;
+            integral = pendulum_clamp(integral, -integral_max, integral_max);
+        }
+
+        return pendulum_clamp(tau, -limit, limit);
     }
 };
 
@@ -184,12 +198,49 @@ void designController(void)
     //   Calculate ki from the selected integral-to-proportional gain ratio.
     //   The hanging and upright gains differ in the sign of the gravity term. Do not allow negative gains.
     //   Store the gains in the PID structure, then print them with printGains() and compare with your hand result.
+    float J = pendulum.inertia();
+    float G = pendulum.gravityTorque();
+    float b = pendulum.viscousFriction();
+
+    // q = +G hanging (gravity restores), -G upright (gravity pushes away); handout 1.3 / Appendix A
+    float wn, ki_over_kp, q;
+    if (equilibrium == 1)
+    {
+        wn = PID_WN_HANGING;
+        ki_over_kp = PID_KI_OVER_KP_HANGING;
+        q = G;
+    }
+    else
+    {
+        wn = PID_WN_UPRIGHT;
+        ki_over_kp = PID_KI_OVER_KP_UPRIGHT;
+        q = -G;
+    }
+
+    float kp = J * wn * wn - q;
+    float kd = 2.0f * PID_ZETA * wn * J - b;
+    if (kp < 0.0f)
+    {
+        kp = 0.0f;
+    }
+    if (kd < 0.0f)
+    {
+        kd = 0.0f;
+    }
+    float ki = ki_over_kp * kp;
+
+    pid.kp = kp;
+    pid.ki = ki;
+    pid.kd = kd;
+    printGains(kp, ki, kd);
 }
 
 void clearControllerState(void)
 {
     // TODO (Part 1): reset the PID controller's stored state.
     // TODO (Part 2): reset the remembered swing-up push direction to +1.
+    pid.reset();
+    swing_direction = 1.0f;
 }
 
 float swingUpTorque(float theta, float omega)
@@ -202,7 +253,19 @@ float swingUpTorque(float theta, float omega)
     //   Calculate the normalized energy error using the configured energy ratio and energy band.
     //   Clamp this coefficient to [-1, +1] with pendulum_clamp(), then multiply by the maximum torque and
     //   the remembered push direction. Return the resulting torque.
-    return 0.0f;
+    // at rest sign(omega) = 0 would never start the swing: keep the last push direction
+    if (fabsf(omega) > SWING_KICK_SPEED)
+    {
+        swing_direction = pendulum_sign(omega);
+    }
+
+    float E = pendulum.energy(theta, omega);
+    float E_up = pendulum.energyUpright();
+    float tau_max = pendulum.maxTorque();
+
+    // alpha = sat((rho - E/E_up) / B): +1 adds energy, 0 at the target, -1 removes energy (handout 5.2)
+    float alpha = pendulum_clamp((SWING_ENERGY_RATIO - E / E_up) / SWING_ENERGY_BAND, -1.0f, 1.0f);
+    return alpha * tau_max * swing_direction;
 }
 
 float controlTorque(void)
@@ -223,7 +286,30 @@ float controlTorque(void)
     //
     // In Part 1, updateMode() in the library is still a stub that always returns BALANCE. In Part 2, your
     //   library implementation makes the SWING_UP branch active.
-    return 0.0f;
+    float limit = pendulum.maxTorque();
+
+    if (equilibrium == 1)
+    {
+        float error = pendulum_wrap_angle(0.0f - pendulum.theta);
+        return pid.update(error, pendulum.omega, pendulum.dt, limit);
+    }
+
+    Pendulum_lar::Mode previous = pendulum.mode();
+    Pendulum_lar::Mode mode = pendulum.updateMode();
+    if (mode == Pendulum_lar::BALANCE)
+    {
+        if (previous != Pendulum_lar::BALANCE)
+        {
+            pid.reset(); // just captured: start the integral from zero
+        }
+        float error = pendulum_wrap_angle(PENDULUM_LAR_PI - pendulum.theta);
+        return pid.update(error, pendulum.omega, pendulum.dt, limit);
+    }
+    if (use_swing_up)
+    {
+        return swingUpTorque(pendulum.theta, pendulum.omega);
+    }
+    return 0.0f; // SWING_UP without the helper: let the pendulum fall
 }
 
 // ============================== serial commands ==============================
@@ -299,6 +385,24 @@ void setup()
     //      back-EMF constant) to the measured mechanical viscous friction; otherwise use the measured value.
     //   5. Call pendulum.setCoulombCompensation() and pendulum.setCaptureAngles() with the selected settings.
     //   6. Call designController() to calculate the gains for the selected equilibrium.
+    if (!foc.begin(MOTOR_SUPPLY_VOLTAGE, MOTOR_VOLTAGE_LIMIT, SENSOR_ALIGN_VOLTAGE,
+                   STORED_ZERO_ELECTRIC_ANGLE, STORED_SENSOR_DIRECTION))
+    {
+        while (1)
+        {
+        }
+    }
+    foc.setTorqueConstant(TORQUE_CONSTANT);
+    foc.setBackEmfConstant(USE_BACK_EMF_COMP ? MOTOR_KE : 0.0f);
+
+    pendulum.begin(foc, CONTROL_PERIOD_S, VELOCITY_ALPHA, RUN_TIME_S);
+    // without back-EMF compensation the motor adds the electrical damping k*Ke
+    float b = USE_BACK_EMF_COMP ? VISCOUS_FRICTION : VISCOUS_FRICTION + TORQUE_CONSTANT * MOTOR_KE;
+    pendulum.setParameters(ROD_MASS, POINT_MASS, PENDULUM_LENGTH, b, COULOMB_FRICTION);
+    pendulum.setCoulombCompensation(USE_COULOMB_COMP);
+    pendulum.setCaptureAngles(CAPTURE_ANGLE, RELEASE_ANGLE);
+
+    designController();
 
     // Given: keep these print calls after model initialization; printModel() needs the model parameters.
     printModel();
@@ -317,4 +421,19 @@ void loop()
     //   5. If there is no new control sample, return; do not calculate or apply a new torque.
     //   6. Calculate the torque with controlTorque(), apply it with pendulum.applyTorque(), and write the CSV
     //      sample with pendulum.log().
+    foc.update();
+    bool new_sample = pendulum.update();
+    handleCommands();
+    if (pendulum.started())
+    {
+        clearControllerState();
+    }
+    if (!new_sample)
+    {
+        return;
+    }
+
+    float tau = controlTorque();
+    pendulum.applyTorque(tau);
+    pendulum.log();
 }

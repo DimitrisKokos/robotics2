@@ -81,16 +81,10 @@ void PendulumModel::setParameters(float rod_mass,
     //        torque at any angle.
     //   _b, _tc : the viscous and the Coulomb friction coefficients, as given (viscous_friction, coulomb_friction).
     // The sketch prints J, G and sqrt(G/J) at power-up: compare them with your Section 2 calculations.
-    (void)rod_mass;
-    (void)point_mass;
-    (void)length;
-    (void)viscous_friction;
-    (void)coulomb_friction;
-    (void)gravity;
-    _J = 0.0f;  // <- replace
-    _G = 0.0f;  // <- replace
-    _b = 0.0f;  // <- replace
-    _tc = 0.0f; // <- replace
+    _J = (rod_mass / 3.0f + point_mass) * length * length;
+    _G = (rod_mass / 2.0f + point_mass) * length * gravity;
+    _b = viscous_friction;
+    _tc = coulomb_friction;
 }
 
 float PendulumModel::inertia(void) const
@@ -144,9 +138,7 @@ float PendulumModel::energy(float theta, float omega) const
     //   - potential: the centres of mass rise as the pendulum turns. Their height above the hanging position,
     //     times weight, adds up to G*(1 - cos(theta)) (cosf()): 0 hanging, G at horizontal, 2*G upright.
     //   Check: at rest at the top E = energyUpright() = 2*G.
-    (void)theta;
-    (void)omega;
-    return 0.0f; // <- replace
+    return 0.5f * _J * omega * omega + _G * (1.0f - cosf(theta));
 }
 
 float PendulumModel::energyUpright(void) const
